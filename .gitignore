@@ -45,6 +45,7 @@ k8s/buildconfig.yaml
 
 #backup readme
 README_bup.md
+README_OLD.md
 
 # S2I legacy files (kept as backup)
 **/*.old
@@ -80,4 +81,5 @@ security-analysis-report.md
 golang-implementation.md
 status.md
 test-plan.md
+test.md
 STATUS_*.*

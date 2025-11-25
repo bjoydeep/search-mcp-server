@@ -391,8 +391,14 @@ container-clean: ## Clean local container images
 	@$(CONTAINER_TOOL) rmi $(MCP_SERVER_IMAGE) 2>/dev/null || true
 	@echo "$(GREEN)✓ Local container images cleaned$(RESET)"
 
-clean-all: clean-namespace container-clean ## Clean everything container-related
-	@echo "$(GREEN)✓ Complete container cleanup done$(RESET)"
+clean-rbac: check-login ## Clean up cluster-level RBAC resources
+	@echo "$(CYAN)Cleaning cluster-level RBAC resources...$(RESET)"
+	@oc delete clusterrole acm-search-mcp-auth-role 2>/dev/null || true
+	@oc delete clusterrolebinding acm-search-auth-delegator-binding 2>/dev/null || true
+	@echo "$(GREEN)✓ Cluster RBAC resources cleaned$(RESET)"
+
+clean-all: clean-namespace container-clean clean-rbac ## Clean everything: namespace, containers, and RBAC
+	@echo "$(GREEN)✓ Complete cleanup done (namespace + containers + RBAC)$(RESET)"
 
 ## Quay.io specific targets
 quay-login: ## Login to Quay.io registry

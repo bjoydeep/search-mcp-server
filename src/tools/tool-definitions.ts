@@ -50,7 +50,7 @@ export const PRIMARY_TOOLS: ToolDefinition[] = [
         },
         textSearch: {
           type: 'string',
-          description: 'Search across all resource fields'
+          description: 'Comprehensive text search across: (1) resource names, (2) namespaces, and (3) ALL JSON fields including labels, annotations, status, and nested data. Case-insensitive pattern matching. Examples: "NonCompliant" finds non-compliant policies, "CrashLoopBackOff" finds failing pods, "prometheus" finds monitoring resources. Performance: Slower than specific field filters but searches everything.'
         },
         ageNewerThan: {
           type: 'string',

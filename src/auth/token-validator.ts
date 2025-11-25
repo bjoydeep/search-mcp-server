@@ -90,24 +90,28 @@ export class KubernetesTokenValidator {
     }
   }
 
-  private callK8sAPI(path: string, data: any, saToken: string): Promise<any> {
+  private callK8sAPI(path: string, data: any, saToken: string, method: string = 'POST'): Promise<any> {
     return new Promise((resolve, reject) => {
-      const postData = JSON.stringify(data);
+      const isGet = method === 'GET';
+      const postData = isGet ? '' : JSON.stringify(data);
 
       const options = {
         hostname: this.k8sHost,
         port: parseInt(this.k8sPort),
         path,
-        method: 'POST',
+        method,
         headers: {
           'Authorization': `Bearer ${saToken}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Content-Length': Buffer.byteLength(postData)
-        },
+          'Accept': 'application/json'
+        } as any,
         rejectUnauthorized: false, // Skip TLS verification (like curl -k)
         timeout: 5000 // 5 second timeout
       };
+
+      if (!isGet) {
+        options.headers['Content-Type'] = 'application/json';
+        options.headers['Content-Length'] = Buffer.byteLength(postData);
+      }
 
       const req = https.request(options, (res) => {
         let body = '';
@@ -135,7 +139,9 @@ export class KubernetesTokenValidator {
         reject(new Error('TokenReview API request timed out'));
       });
 
-      req.write(postData);
+      if (!isGet) {
+        req.write(postData);
+      }
       req.end();
     });
   }
@@ -145,7 +151,7 @@ export class KubernetesTokenValidator {
     try {
       const saToken = fs.readFileSync(this.saTokenPath, 'utf8').trim();
       // Try a simple API call to test connectivity
-      await this.callK8sAPI('/api', {}, saToken);
+      await this.callK8sAPI('/api', null, saToken, 'GET');
       return true;
     } catch (error) {
       console.error('Kubernetes API connection test failed:', error);
@@ -157,75 +163,77 @@ export class KubernetesTokenValidator {
    * Check if user has ACM administrator permissions
    *
    * This function determines if a user should have access to ACM search database
-   * by checking for ACM administrative capabilities.
+   * by checking for ACM administrative capabilities using the user's own token.
    *
    * @param validationResult - Result from validateBearerToken()
+   * @param userToken - User's bearer token (for SelfSubjectAccessReview)
    * @returns Promise<boolean> - true if user has ACM admin access
    */
-  async checkACMAdminPermissions(validationResult: TokenValidationResult): Promise<boolean> {
+  async checkACMAdminPermissions(validationResult: TokenValidationResult, userToken: string): Promise<boolean> {
     if (!validationResult.valid || !validationResult.user) {
       return false;
     }
 
     const username = validationResult.user.username;
-    const groups = validationResult.user.groups || [];
 
     try {
-      console.log(`[ACM-AUTH] Checking permissions for user: ${username}, groups: [${groups.join(', ')}]`);
+      console.log(`[ACM-AUTH] Checking permissions for user: ${username} using SelfSubjectAccessReview`);
 
-      // Quick check: cluster admin groups (highest permission)
-      const clusterAdminGroups = ['system:masters', 'system:cluster-admins'];
-      const userClusterAdminGroup = groups.find(group => clusterAdminGroups.includes(group));
+      // 1. Check if user has cluster admin permissions (any method)
+      // This is equivalent to 'oc auth can-i "*" "*"' using the user's own token
+      console.log(`[ACM-AUTH] Testing cluster admin permissions for user: ${username}`);
+      const hasClusterAdmin = await this.checkSelfSubjectAccessReview(userToken, username, {
+        verb: '*',
+        resource: '*'
+      });
 
-      if (userClusterAdminGroup) {
-        console.log(`[ACM-AUTH] User ${username} granted access via ${userClusterAdminGroup} group`);
+      if (hasClusterAdmin) {
+        console.log(`[ACM-AUTH] User ${username} granted access via cluster admin permissions`);
         return true;
       }
 
-      // Check: Can create ManagedClusters (signature ACM admin permission)
-      // ManagedClusters are cluster-scoped resources that only ACM administrators can create
-      console.log(`[ACM-AUTH] Testing ManagedCluster creation permission for user: ${username}`);
-      const hasACMAdminCapability = await this.checkSubjectAccessReview(username, {
+      // 2. Fallback: Check ACM-specific permissions for non-cluster-admins
+      console.log(`[ACM-AUTH] Testing ACM admin permissions for user: ${username}`);
+      const hasACMAdmin = await this.checkSelfSubjectAccessReview(userToken, username, {
         verb: 'create',
         resource: 'managedclusters',
         group: 'cluster.open-cluster-management.io'
       });
 
-      console.log(`[ACM-AUTH] ManagedCluster creation check result: ${hasACMAdminCapability}`);
-
-      if (hasACMAdminCapability) {
-        console.log(`[ACM-AUTH] User ${username} granted access via ACM admin capability (managedcluster creation)`);
+      if (hasACMAdmin) {
+        console.log(`[ACM-AUTH] User ${username} granted access via ACM admin permissions`);
         return true;
       }
 
-      console.log(`[ACM-AUTH] User ${username} denied access - insufficient ACM permissions`);
+      console.log(`[ACM-AUTH] User ${username} denied access - insufficient permissions`);
       return false;
 
     } catch (error) {
-      console.error(`[ACM-AUTH] Error checking ACM permissions for user ${username}:`, error);
+      console.error(`[ACM-AUTH] Error checking permissions for user ${username}:`, error);
       return false;
     }
   }
 
+
   /**
-   * Check if user has specific permissions via SubjectAccessReview API
+   * Check if user has specific permissions via SelfSubjectAccessReview API
+   * Uses the user's own token (like 'oc auth can-i') instead of impersonation
    *
-   * @param username - Username to check
+   * @param userToken - User's bearer token
+   * @param username - Username for logging
    * @param permission - Permission to check (verb, resource, group)
    * @returns Promise<boolean> - true if user has the permission
    */
-  private async checkSubjectAccessReview(
+  private async checkSelfSubjectAccessReview(
+    userToken: string,
     username: string,
     permission: { verb: string; resource: string; group?: string }
   ): Promise<boolean> {
     try {
-      const saToken = fs.readFileSync(this.saTokenPath, 'utf8').trim();
-
-      const subjectAccessReview = {
+      const selfSubjectAccessReview = {
         apiVersion: 'authorization.k8s.io/v1',
-        kind: 'SubjectAccessReview',
+        kind: 'SelfSubjectAccessReview',
         spec: {
-          user: username,
           resourceAttributes: {
             verb: permission.verb,
             resource: permission.resource,
@@ -235,15 +243,26 @@ export class KubernetesTokenValidator {
       };
 
       const result = await this.callK8sAPI(
-        '/apis/authorization.k8s.io/v1/subjectaccessreviews',
-        subjectAccessReview,
-        saToken
+        '/apis/authorization.k8s.io/v1/selfsubjectaccessreviews',
+        selfSubjectAccessReview,
+        userToken
       );
 
-      return result.status?.allowed === true;
+      const allowed = result.status?.allowed === true;
+
+      if (allowed) {
+        // Success: Brief logging
+        console.log(`[ACM-AUTH] User ${username} granted ${permission.verb} ${permission.resource} permission`);
+      } else {
+        // Failure: Detailed logging for debugging
+        console.log(`[ACM-AUTH] User ${username} denied ${permission.verb} ${permission.resource} permission: ${result.status?.reason || 'no reason provided'}`);
+      }
+
+      return allowed;
 
     } catch (error) {
-      console.error(`[ACM-AUTH] SubjectAccessReview failed for user ${username}:`, error);
+      // Error: Full error details for troubleshooting
+      console.error(`[ACM-AUTH] Permission check failed for user ${username} (${permission.verb} ${permission.resource}):`, error);
       return false;
     }
   }

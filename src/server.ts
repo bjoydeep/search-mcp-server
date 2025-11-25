@@ -263,7 +263,7 @@ class PostgresMCPServer {
           labelSelector: z.string().optional().describe('Kubernetes label selector for resources: "app=nginx,env!=test"'),
           clusterSelector: z.string().optional().describe('Filter by ManagedCluster labels (use cluster= for cluster names). Examples: "cloud=AWS", "environment=production", "location=us-east"'),
           status: z.string().optional().describe('Status filter: "Running,Failed" or "CrashLoopBackOff"'),
-          textSearch: z.string().optional().describe('Search across all resource fields'),
+          textSearch: z.string().optional().describe('Comprehensive text search across: (1) resource names, (2) namespaces, and (3) ALL JSON fields including labels, annotations, status, and nested data. Case-insensitive pattern matching. Examples: "NonCompliant" finds non-compliant policies, "CrashLoopBackOff" finds failing pods, "prometheus" finds monitoring resources. Performance: Slower than specific field filters but searches everything.'),
 
           // Time filters
           ageNewerThan: z.string().optional().describe('Resources newer than: "1h", "2d", "1w"'),

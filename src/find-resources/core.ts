@@ -142,6 +142,11 @@ export class FindResourcesCore {
       conditions.push(...kindFilter.conditions);
       params.push(...kindFilter.params);
       paramIndex = kindFilter.nextParamIndex;
+
+      // Filter out ACM internal "cluster" config nodes (config.openshift.io Node resources)
+      if (args.kind === 'Node') {
+        conditions.push(`NOT (data->>'apigroup' = 'config.openshift.io' AND data->>'name' = 'cluster')`);
+      }
     }
 
     // Name filter
@@ -187,9 +192,11 @@ export class FindResourcesCore {
       paramIndex += labelFilter.params.length;
     }
 
-    // Status filter
+    // Status filter - now uses hybrid approach (mappings + textSearch fallback)
     if (args.status) {
-      const statusFilter = buildStatusConditions(args.status, 'data', paramIndex);
+      // For hybrid status filtering, use the first kind if multiple kinds specified
+      const kindForStatusMapping = Array.isArray(args.kind) ? args.kind[0] : args.kind;
+      const statusFilter = buildStatusConditions(args.status, 'data', paramIndex, kindForStatusMapping);
       conditions.push(...statusFilter.conditions);
       params.push(...statusFilter.params);
       paramIndex = statusFilter.nextParamIndex;
@@ -197,11 +204,11 @@ export class FindResourcesCore {
 
     // Text search filter
     if (args.textSearch) {
-      const textFilter = buildTextSearchConditions(args.textSearch, 'data');
+      const textFilter = buildTextSearchConditions(args.textSearch, 'data', paramIndex);
       if (textFilter.conditions.length > 0) {
         conditions.push(...textFilter.conditions);
         params.push(...textFilter.params);
-        paramIndex += textFilter.params.length;
+        paramIndex = textFilter.nextParamIndex;
       }
     }
 

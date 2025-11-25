@@ -2,6 +2,7 @@
 
 import { DatabaseQueries } from '../database/queries.js';
 import { parseLabelSelector, labelSelectorsToSQL } from './label-selectors.js';
+import { getStatusMapping, buildKindAwareStatusConditions } from './status-mapping.js';
 
 /**
  * Find clusters that match the cluster selector
@@ -78,55 +79,111 @@ export function arrayToSQLIn(
  */
 export function buildTextSearchConditions(
   searchText: string,
-  dataColumn: string = 'data'
-): { conditions: string[], params: string[] } {
+  dataColumn: string = 'data',
+  paramStartIndex: number = 1
+): { conditions: string[], params: string[], nextParamIndex: number } {
   if (!searchText || searchText.trim() === '') {
-    return { conditions: [], params: [] };
+    return { conditions: [], params: [], nextParamIndex: paramStartIndex };
   }
 
   const trimmedText = searchText.trim();
   const searchPattern = `%${trimmedText}%`;
 
-  // Search across common fields
+  // Search across common fields using dynamic parameter indexing
   const conditions = [
-    `${dataColumn}->>'name' ILIKE $1`,
-    `${dataColumn}->>'namespace' ILIKE $1`,
-    `${dataColumn}::text ILIKE $1` // Full text search in JSON
+    `${dataColumn}->>'name' ILIKE $${paramStartIndex}`,
+    `${dataColumn}->>'namespace' ILIKE $${paramStartIndex}`,
+    `${dataColumn}::text ILIKE $${paramStartIndex}` // Full text search in JSON
   ];
 
   return {
     conditions: [`(${conditions.join(' OR ')})`],
-    params: [searchPattern]
+    params: [searchPattern],
+    nextParamIndex: paramStartIndex + 1
   };
 }
 
 /**
- * Parse status values and return appropriate SQL conditions
+ * Parse status values and return appropriate SQL conditions using hybrid approach:
+ * - Use precise status mapping for known resource types (41 mapped types)
+ * - Fall back to textSearch for unmapped resource types (112 remaining types)
  */
 export function buildStatusConditions(
   status: string | string[],
   dataColumn: string = 'data',
-  paramStartIndex: number = 1
+  paramStartIndex: number = 1,
+  kind?: string
 ): { conditions: string[], params: string[], nextParamIndex: number } {
-  const statusArray = Array.isArray(status) ? status : [status];
+  // Handle comma-separated values: "Error,Failed" -> ["Error", "Failed"]
+  let statusArray: string[];
+  if (Array.isArray(status)) {
+    statusArray = status;
+  } else {
+    // Split comma-separated string and trim whitespace
+    statusArray = status.split(',').map(s => s.trim()).filter(s => s.length > 0);
+  }
 
   if (statusArray.length === 0) {
     return { conditions: [], params: [], nextParamIndex: paramStartIndex };
   }
 
+  try {
+    // Try to use kind-aware status mapping for precise filtering
+    if (kind) {
+      const mapping = getStatusMapping(kind);
+
+      if (mapping && mapping.category !== 'none') {
+        // Use precise database filtering for mapped resource types
+        return buildKindAwareStatusConditions(kind, statusArray, dataColumn, paramStartIndex);
+      }
+    }
+
+    // Fall back to textSearch approach for unmapped resource types
+    console.log(`[STATUS] Using textSearch fallback for kind: ${kind || 'unknown'}, status: ${statusArray.join(',')}`);
+    return buildTextSearchStatusFallback(statusArray, dataColumn, paramStartIndex);
+
+  } catch (error) {
+    console.error(`[STATUS] Error in kind-aware filtering, falling back to textSearch:`, error);
+    // Safe fallback to textSearch if anything goes wrong
+    return buildTextSearchStatusFallback(statusArray, dataColumn, paramStartIndex);
+  }
+}
+
+/**
+ * Fallback status filtering using textSearch approach
+ * Searches for status values within the entire JSON data
+ */
+function buildTextSearchStatusFallback(
+  statusArray: string[],
+  dataColumn: string,
+  paramStartIndex: number
+): { conditions: string[], params: string[], nextParamIndex: number } {
+
   if (statusArray.length === 1) {
+    const status = statusArray[0];
+    // Use JSON-aware text search to find the status value anywhere in the data
     return {
-      conditions: [`${dataColumn}->>'status' = $${paramStartIndex}`],
-      params: statusArray,
+      conditions: [`${dataColumn}::text ILIKE $${paramStartIndex}`],
+      params: [`%"${status}"%`], // JSON-quoted to avoid false matches
       nextParamIndex: paramStartIndex + 1
     };
   }
 
-  const placeholders = statusArray.map((_, index) => `$${paramStartIndex + index}`).join(',');
+  // Multiple status values - create OR condition with textSearch
+  const conditions: string[] = [];
+  const params: string[] = [];
+  let currentParamIndex = paramStartIndex;
+
+  for (const status of statusArray) {
+    conditions.push(`${dataColumn}::text ILIKE $${currentParamIndex}`);
+    params.push(`%"${status}"%`);
+    currentParamIndex++;
+  }
+
   return {
-    conditions: [`${dataColumn}->>'status' IN (${placeholders})`],
-    params: statusArray,
-    nextParamIndex: paramStartIndex + statusArray.length
+    conditions: [`(${conditions.join(' OR ')})`],
+    params,
+    nextParamIndex: currentParamIndex
   };
 }
 
