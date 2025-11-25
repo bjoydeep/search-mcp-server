@@ -35,15 +35,16 @@ make status
 
 ### Connection
 ```bash
-# Get your token
+# Get your connection details
 export TOKEN=$(oc whoami -t)
+export ROUTE_URL=$(oc get route acm-search-mcp-server-route -n acm-search -o jsonpath='{.spec.host}')
 
 # Option A: HTTPS Route (requires certificate handling)
 # this env has to be exported if using the https route
 export NODE_TLS_REJECT_UNAUTHORIZED=0
 claude mcp add --env NODE_TLS_REJECT_UNAUTHORIZED=0 --scope project \
   --transport sse acm-search \
-  https://acm-search-mcp-server-route-acm-search.apps.CLUSTER_DOMAIN/sse \
+  https://$ROUTE_URL/sse \
   --header "Authorization: Bearer $TOKEN"
 
 # Option B: HTTP Port-forward (no certificate issues)
@@ -146,13 +147,8 @@ metadata:
 rules:
 - apiGroups: ["authentication.k8s.io"]
   resources: ["tokenreviews"]
-  verbs: ["create"]                          # Token validation
-- apiGroups: ["authorization.k8s.io"]
-  resources: ["subjectaccessreviews"]
-  verbs: ["create"]                          # Permission checking
-- apiGroups: ["rbac.authorization.k8s.io"]
-  resources: ["clusterrolebindings"]
-  verbs: ["get", "list"]                     # Custom group checking
+  verbs: ["create"]                          # Token validation only
+# Note: Uses SelfSubjectAccessReview with user's token for permission checking
 ```
 
 This ClusterRole is automatically created by `make deploy-prebuilt`.
@@ -160,10 +156,9 @@ This ClusterRole is automatically created by `make deploy-prebuilt`.
 ### Authorization Flow
 
 1. **Token Validation** → Kubernetes TokenReview API validates bearer token
-2. **System Group Check** → Fast check for `system:masters`, `system:cluster-admins`
-3. **Custom Group Check** → Query ClusterRoleBindings for groups with `cluster-admin` role
-4. **ACM Permission Check** → Test ManagedCluster creation capability via SubjectAccessReview
-5. **Grant/Deny Access** → Allow if any check passes
+2. **Cluster Admin Check** → SelfSubjectAccessReview with user's token for `*` `*` permissions
+3. **ACM Admin Check** → SelfSubjectAccessReview with user's token for ManagedCluster creation
+4. **Grant/Deny Access** → Allow if either check passes (either/or logic)
 
 ## Troubleshooting
 
@@ -217,6 +212,7 @@ The deployment automatically discovers ACM namespace, but if it fails:
 # Find ACM manually
 oc get secret --all-namespaces | grep search-postgres
 oc get namespace | grep -E "(acm|ocm|open-cluster|multicluster)"
+oc get multiclusterhub -A --no-headers | awk '{print $1;}'
 
 # Common ACM namespaces: open-cluster-management, ocm, rhacm, multicluster-engine
 ```
@@ -225,10 +221,17 @@ oc get namespace | grep -E "(acm|ocm|open-cluster|multicluster)"
 
 ### Build & Deploy
 ```bash
+# 1. Install dependencies and compile TypeScript
+npm install                 # Install Node.js dependencies
+npm run build               # Compile TypeScript to JavaScript (dist/)
+
+# 2. Deploy
 ./scripts/create-secret.sh  # Generate database connection
-make deploy                 # Build + deploy custom image
-make rebuild                # Clean everything + rebuild
+make deploy                 # Build container + deploy custom image
+make rebuild                # Clean everything + rebuild from scratch
 ```
+
+**Important**: Always run `npm run build` after modifying TypeScript files, as the container uses compiled JavaScript from `dist/`.
 
 ### Testing & Operations
 ```bash

@@ -163,125 +163,77 @@ export class KubernetesTokenValidator {
    * Check if user has ACM administrator permissions
    *
    * This function determines if a user should have access to ACM search database
-   * by checking for ACM administrative capabilities.
+   * by checking for ACM administrative capabilities using the user's own token.
    *
    * @param validationResult - Result from validateBearerToken()
+   * @param userToken - User's bearer token (for SelfSubjectAccessReview)
    * @returns Promise<boolean> - true if user has ACM admin access
    */
-  async checkACMAdminPermissions(validationResult: TokenValidationResult): Promise<boolean> {
+  async checkACMAdminPermissions(validationResult: TokenValidationResult, userToken: string): Promise<boolean> {
     if (!validationResult.valid || !validationResult.user) {
       return false;
     }
 
     const username = validationResult.user.username;
-    const groups = validationResult.user.groups || [];
 
     try {
-      console.log(`[ACM-AUTH] Checking permissions for user: ${username}, groups: [${groups.join(', ')}]`);
+      console.log(`[ACM-AUTH] Checking permissions for user: ${username} using SelfSubjectAccessReview`);
 
-      // Check: cluster admin permissions via any group (including custom groups)
-      // First try the common system groups for performance
-      const systemClusterAdminGroups = ['system:masters', 'system:cluster-admins'];
-      const userSystemAdminGroup = groups.find(group => systemClusterAdminGroups.includes(group));
+      // 1. Check if user has cluster admin permissions (any method)
+      // This is equivalent to 'oc auth can-i "*" "*"' using the user's own token
+      console.log(`[ACM-AUTH] Testing cluster admin permissions for user: ${username}`);
+      const hasClusterAdmin = await this.checkSelfSubjectAccessReview(userToken, username, {
+        verb: '*',
+        resource: '*'
+      });
 
-      if (userSystemAdminGroup) {
-        console.log(`[ACM-AUTH] User ${username} granted access via system group: ${userSystemAdminGroup}`);
+      if (hasClusterAdmin) {
+        console.log(`[ACM-AUTH] User ${username} granted access via cluster admin permissions`);
         return true;
       }
 
-      // Check if any user group has cluster-admin role via ClusterRoleBindings
-      const hasClusterAdminViaGroup = await this.checkGroupsForClusterAdmin(groups, username);
-      if (hasClusterAdminViaGroup) {
-        return true;
-      }
-
-      // Check: Can create ManagedClusters (signature ACM admin permission)
-      // ManagedClusters are cluster-scoped resources that only ACM administrators can create
-      console.log(`[ACM-AUTH] Testing ManagedCluster creation permission for user: ${username}`);
-      const hasACMAdminCapability = await this.checkSubjectAccessReview(username, {
+      // 2. Fallback: Check ACM-specific permissions for non-cluster-admins
+      console.log(`[ACM-AUTH] Testing ACM admin permissions for user: ${username}`);
+      const hasACMAdmin = await this.checkSelfSubjectAccessReview(userToken, username, {
         verb: 'create',
         resource: 'managedclusters',
         group: 'cluster.open-cluster-management.io'
       });
 
-      console.log(`[ACM-AUTH] ManagedCluster creation check result: ${hasACMAdminCapability}`);
-
-      if (hasACMAdminCapability) {
-        console.log(`[ACM-AUTH] User ${username} granted access via ACM admin capability (managedcluster creation)`);
+      if (hasACMAdmin) {
+        console.log(`[ACM-AUTH] User ${username} granted access via ACM admin permissions`);
         return true;
       }
 
-      console.log(`[ACM-AUTH] User ${username} denied access - insufficient ACM permissions`);
+      console.log(`[ACM-AUTH] User ${username} denied access - insufficient permissions`);
       return false;
 
     } catch (error) {
-      console.error(`[ACM-AUTH] Error checking ACM permissions for user ${username}:`, error);
+      console.error(`[ACM-AUTH] Error checking permissions for user ${username}:`, error);
       return false;
     }
   }
 
+
   /**
-   * Check if any of the user's groups have cluster-admin role via ClusterRoleBindings
+   * Check if user has specific permissions via SelfSubjectAccessReview API
+   * Uses the user's own token (like 'oc auth can-i') instead of impersonation
    *
-   * @param groups - User's group memberships
+   * @param userToken - User's bearer token
    * @param username - Username for logging
-   * @returns Promise<boolean> - true if any group has cluster-admin permissions
-   */
-  private async checkGroupsForClusterAdmin(groups: string[], username: string): Promise<boolean> {
-    try {
-      const saToken = fs.readFileSync(this.saTokenPath, 'utf8').trim();
-
-      // Get all ClusterRoleBindings with cluster-admin role
-      const clusterRoleBindingsPath = '/apis/rbac.authorization.k8s.io/v1/clusterrolebindings';
-
-      const result = await this.callK8sAPI(clusterRoleBindingsPath, null, saToken, 'GET');
-
-      if (!result.items) {
-        console.log(`[ACM-AUTH] No ClusterRoleBindings found`);
-        return false;
-      }
-
-      // Check if any ClusterRoleBinding grants cluster-admin to user's groups
-      for (const binding of result.items) {
-        if (binding.roleRef?.name === 'cluster-admin') {
-          const subjects = binding.subjects || [];
-
-          for (const subject of subjects) {
-            if (subject.kind === 'Group' && groups.includes(subject.name)) {
-              console.log(`[ACM-AUTH] User ${username} granted access via group "${subject.name}" with cluster-admin role (ClusterRoleBinding: ${binding.metadata?.name})`);
-              return true;
-            }
-          }
-        }
-      }
-
-      return false;
-
-    } catch (error) {
-      console.error(`[ACM-AUTH] Error checking ClusterRoleBindings for user ${username}:`, error);
-      return false;
-    }
-  }
-
-  /**
-   * Check if user has specific permissions via SubjectAccessReview API
-   *
-   * @param username - Username to check
    * @param permission - Permission to check (verb, resource, group)
    * @returns Promise<boolean> - true if user has the permission
    */
-  private async checkSubjectAccessReview(
+  private async checkSelfSubjectAccessReview(
+    userToken: string,
     username: string,
     permission: { verb: string; resource: string; group?: string }
   ): Promise<boolean> {
     try {
-      const saToken = fs.readFileSync(this.saTokenPath, 'utf8').trim();
-
-      const subjectAccessReview = {
+      const selfSubjectAccessReview = {
         apiVersion: 'authorization.k8s.io/v1',
-        kind: 'SubjectAccessReview',
+        kind: 'SelfSubjectAccessReview',
         spec: {
-          user: username,
           resourceAttributes: {
             verb: permission.verb,
             resource: permission.resource,
@@ -291,15 +243,26 @@ export class KubernetesTokenValidator {
       };
 
       const result = await this.callK8sAPI(
-        '/apis/authorization.k8s.io/v1/subjectaccessreviews',
-        subjectAccessReview,
-        saToken
+        '/apis/authorization.k8s.io/v1/selfsubjectaccessreviews',
+        selfSubjectAccessReview,
+        userToken
       );
 
-      return result.status?.allowed === true;
+      const allowed = result.status?.allowed === true;
+
+      if (allowed) {
+        // Success: Brief logging
+        console.log(`[ACM-AUTH] User ${username} granted ${permission.verb} ${permission.resource} permission`);
+      } else {
+        // Failure: Detailed logging for debugging
+        console.log(`[ACM-AUTH] User ${username} denied ${permission.verb} ${permission.resource} permission: ${result.status?.reason || 'no reason provided'}`);
+      }
+
+      return allowed;
 
     } catch (error) {
-      console.error(`[ACM-AUTH] SubjectAccessReview failed for user ${username}:`, error);
+      // Error: Full error details for troubleshooting
+      console.error(`[ACM-AUTH] Permission check failed for user ${username} (${permission.verb} ${permission.resource}):`, error);
       return false;
     }
   }

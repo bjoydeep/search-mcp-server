@@ -107,8 +107,9 @@ class HTTPMCPServer {
         if (validationResult.valid) {
           console.log(`[AUTH] Token validated successfully for user: ${validationResult.user?.username} (via ${headerSource} header)`);
 
-          // Check ACM admin permissions
-          const hasACMAccess = await this.tokenValidator.checkACMAdminPermissions(validationResult);
+          // Check ACM admin permissions using user's token
+          const userToken = authHeader.substring(7); // Remove 'Bearer ' prefix
+          const hasACMAccess = await this.tokenValidator.checkACMAdminPermissions(validationResult, userToken);
 
           if (hasACMAccess) {
             console.log(`[AUTH] ACM admin access granted for user: ${validationResult.user?.username}`);
