@@ -44,7 +44,7 @@ func (t *HTTPTransport) Start(ctx context.Context, mcpServer *PostgresMCPServer)
 	}
 
 	// Create MCP server using mark3labs library
-	t.mcpLib = server.NewMCPServer("ACM Search MCP Server", "1.0.0")
+	t.mcpLib = server.NewMCPServer(t.config.AppDisplayName, t.config.AppVersion)
 
 	// Remove auto-generated database resources to maintain transport consistency
 	t.mcpLib.DeleteResources("database://tables", "database://stats")
@@ -392,10 +392,10 @@ func (t *HTTPTransport) handleInitialize(w http.ResponseWriter, requestID interf
 			"streaming": map[string]interface{}{"enabled": true},
 		},
 		"serverInfo": map[string]interface{}{
-			"name":    "ACM Search MCP Server",
-			"version": "1.0.0",
+			"name":    t.config.AppDisplayName,
+			"version": t.config.AppVersion,
 		},
-		"instructions": "ACM Search MCP Server provides access to ACM database and Kubernetes resources across all managed clusters.",
+		"instructions": t.config.AppDescription,
 	}
 
 	t.sendJSONRPCResult(w, requestID, result)
