@@ -8,7 +8,7 @@ Model Context Protocol (MCP) server providing access to Red Hat Advanced Cluster
 
 ```bash
 # Option 1: From packaged repository (recommended)
-helm repo add acm-search https://stolostron.github.io/search-mcp-server
+helm repo add acm-search https://raw.githubusercontent.com/stolostron/search-mcp-server/main/charts
 helm repo update
 helm install acm-mcp-server acm-search/acm-mcp-server --create-namespace --namespace acm-search
 

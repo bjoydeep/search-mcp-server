@@ -32,7 +32,7 @@ coverage:
 
 # Clean
 clean:
-	rm -rf ../bin/ coverage.out coverage.html
+	rm -rf bin/ coverage.out coverage.html
 
 # Download dependencies
 deps:
