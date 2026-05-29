@@ -1,9 +1,11 @@
 package findresources
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stolostron/search-mcp-server/internal/server/auth"
+	"github.com/stolostron/search-mcp-server/internal/utils"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -489,4 +491,227 @@ func TestBuildAPIGroupKindConditions(t *testing.T) {
 			assert.Equal(t, tt.expectedParams, params)
 		})
 	}
+}
+
+func TestBuildClusterScopedConditions(t *testing.T) {
+	core := NewFindResourcesCore(nil)
+
+	t.Run("single cluster with specific perms", func(t *testing.T) {
+		source := auth.PermissionSource{
+			Source: "hub-kubernetes",
+			ClusterScopedKinds: map[string][]auth.ResourcePermission{
+				"local-cluster": {
+					{Kind: "Node", APIGroup: ""},
+					{Kind: "ManagedCluster", APIGroup: "cluster.open-cluster-management.io"},
+				},
+			},
+		}
+		sql, params := core.buildClusterScopedConditions(source, nil, "local-cluster")
+		assert.NotEmpty(t, sql)
+		assert.Contains(t, sql, "cluster = %s")
+		assert.Contains(t, sql, "data->>'kind'")
+		assert.Contains(t, sql, "data->>'apigroup'")
+		assert.Contains(t, params, "local-cluster")
+		assert.Contains(t, params, "Node")
+		assert.Contains(t, params, "cluster.open-cluster-management.io")
+		assert.Contains(t, params, "ManagedCluster")
+	})
+
+	t.Run("wildcard perms", func(t *testing.T) {
+		source := auth.PermissionSource{
+			Source: "hub-kubernetes",
+			ClusterScopedKinds: map[string][]auth.ResourcePermission{
+				"local-cluster": {{Kind: "*", APIGroup: "*"}},
+			},
+		}
+		sql, params := core.buildClusterScopedConditions(source, nil, "local-cluster")
+		assert.Contains(t, sql, "1 = 1")
+		assert.Contains(t, params, "local-cluster")
+	})
+
+	t.Run("empty perms", func(t *testing.T) {
+		source := auth.PermissionSource{
+			Source:             "hub-kubernetes",
+			ClusterScopedKinds: map[string][]auth.ResourcePermission{},
+		}
+		sql, params := core.buildClusterScopedConditions(source, nil, "local-cluster")
+		assert.Empty(t, sql)
+		assert.Nil(t, params)
+	})
+
+	t.Run("kind filter narrows results", func(t *testing.T) {
+		source := auth.PermissionSource{
+			Source: "hub-kubernetes",
+			ClusterScopedKinds: map[string][]auth.ResourcePermission{
+				"local-cluster": {
+					{Kind: "Node", APIGroup: ""},
+					{Kind: "ManagedCluster", APIGroup: "cluster.open-cluster-management.io"},
+				},
+			},
+		}
+		sql, params := core.buildClusterScopedConditions(source, "Node", "local-cluster")
+		assert.NotEmpty(t, sql)
+		assert.Contains(t, params, "Node")
+		// ManagedCluster should be excluded by kind filter
+		for _, p := range params {
+			if s, ok := p.(string); ok {
+				assert.NotEqual(t, "ManagedCluster", s)
+			}
+		}
+	})
+}
+
+func TestBuildNamespacedConditions(t *testing.T) {
+	core := NewFindResourcesCore(nil)
+
+	t.Run("hub-kubernetes source", func(t *testing.T) {
+		source := auth.PermissionSource{
+			Source: "hub-kubernetes",
+			NamespacedKinds: map[string][]auth.ResourcePermission{
+				"openshift-monitoring": {
+					{Kind: "Pod", APIGroup: ""},
+					{Kind: "Service", APIGroup: ""},
+				},
+			},
+		}
+		conditions, params := core.buildNamespacedConditions(source, nil, "local-cluster")
+		assert.Len(t, conditions, 1)
+		assert.Contains(t, conditions[0], "data->>'namespace'")
+		assert.Contains(t, conditions[0], "data->>'apigroup'")
+		assert.Contains(t, params, "local-cluster")
+		assert.Contains(t, params, "openshift-monitoring")
+		assert.Contains(t, params, "Pod")
+	})
+
+	t.Run("userpermission-cr source with cluster/namespace key", func(t *testing.T) {
+		source := auth.PermissionSource{
+			Source: "userpermission-cr",
+			NamespacedKinds: map[string][]auth.ResourcePermission{
+				"prod-east/monitoring": {
+					{Kind: "Deployment", APIGroup: "apps"},
+				},
+			},
+		}
+		conditions, params := core.buildNamespacedConditions(source, nil, "local-cluster")
+		assert.Len(t, conditions, 1)
+		assert.Contains(t, params, "prod-east")
+		assert.Contains(t, params, "monitoring")
+		assert.Contains(t, params, "apps")
+		assert.Contains(t, params, "Deployment")
+	})
+
+	t.Run("wildcard namespace with cluster", func(t *testing.T) {
+		source := auth.PermissionSource{
+			Source: "userpermission-cr",
+			NamespacedKinds: map[string][]auth.ResourcePermission{
+				"prod-east/*": {{Kind: "*", APIGroup: "*"}},
+			},
+		}
+		conditions, params := core.buildNamespacedConditions(source, nil, "local-cluster")
+		assert.Len(t, conditions, 1)
+		assert.Contains(t, conditions[0], "cluster = %s")
+		assert.Contains(t, conditions[0], "1 = 1")
+		assert.Contains(t, params, "prod-east")
+	})
+
+	t.Run("wildcard namespace empty cluster skipped", func(t *testing.T) {
+		source := auth.PermissionSource{
+			Source: "hub-kubernetes",
+			NamespacedKinds: map[string][]auth.ResourcePermission{
+				"*": {{Kind: "Pod", APIGroup: ""}},
+			},
+		}
+		// hubClusterName is empty — should skip for security
+		conditions, _ := core.buildNamespacedConditions(source, nil, "")
+		assert.Empty(t, conditions)
+	})
+}
+
+func TestApplyAuthorizationFilters(t *testing.T) {
+	core := NewFindResourcesCore(nil)
+
+	t.Run("empty permission sources denies access", func(t *testing.T) {
+		filters := &auth.QueryFilters{PermissionSources: []auth.PermissionSource{}}
+		builder := utils.NewSQLBuilder(1)
+		err := core.applyAuthorizationFilters(filters, nil, builder)
+		assert.NoError(t, err)
+		where, _ := builder.BuildConditions()
+		assert.Contains(t, where, "1 = 0")
+	})
+
+	t.Run("dual source combines with OR", func(t *testing.T) {
+		filters := &auth.QueryFilters{
+			HubClusterName: "local-cluster",
+			PermissionSources: []auth.PermissionSource{
+				{
+					Source: "userpermission-cr",
+					ClusterScopedKinds: map[string][]auth.ResourcePermission{
+						"prod-east": {{Kind: "*", APIGroup: "*"}},
+					},
+					NamespacedKinds: map[string][]auth.ResourcePermission{},
+					ManagedClusters: map[string]struct{}{"prod-east": {}},
+				},
+				{
+					Source: "hub-kubernetes",
+					ClusterScopedKinds: map[string][]auth.ResourcePermission{
+						"local-cluster": {{Kind: "Node", APIGroup: ""}},
+					},
+					NamespacedKinds: map[string][]auth.ResourcePermission{},
+					ManagedClusters: map[string]struct{}{"local-cluster": {}},
+				},
+			},
+		}
+		builder := utils.NewSQLBuilder(1)
+		err := core.applyAuthorizationFilters(filters, nil, builder)
+		assert.NoError(t, err)
+		where, params := builder.BuildConditions()
+		// Should have OR combining two sources
+		assert.True(t, strings.Count(where, "OR") >= 1, "expected OR combining sources")
+		assert.Contains(t, params, "prod-east")
+		assert.Contains(t, params, "local-cluster")
+		assert.Contains(t, params, "Node")
+	})
+
+	t.Run("sources with no matching perms denies access", func(t *testing.T) {
+		filters := &auth.QueryFilters{
+			HubClusterName: "local-cluster",
+			PermissionSources: []auth.PermissionSource{
+				{
+					Source:             "hub-kubernetes",
+					ClusterScopedKinds: map[string][]auth.ResourcePermission{},
+					NamespacedKinds:    map[string][]auth.ResourcePermission{},
+					ManagedClusters:    map[string]struct{}{},
+				},
+			},
+		}
+		builder := utils.NewSQLBuilder(1)
+		err := core.applyAuthorizationFilters(filters, nil, builder)
+		assert.NoError(t, err)
+		where, _ := builder.BuildConditions()
+		assert.Contains(t, where, "1 = 0")
+	})
+
+	t.Run("apigroup appears in generated SQL", func(t *testing.T) {
+		filters := &auth.QueryFilters{
+			HubClusterName: "local-cluster",
+			PermissionSources: []auth.PermissionSource{
+				{
+					Source: "hub-kubernetes",
+					ClusterScopedKinds: map[string][]auth.ResourcePermission{
+						"local-cluster": {{Kind: "Deployment", APIGroup: "apps"}},
+					},
+					NamespacedKinds: map[string][]auth.ResourcePermission{},
+					ManagedClusters: map[string]struct{}{"local-cluster": {}},
+				},
+			},
+		}
+		builder := utils.NewSQLBuilder(1)
+		err := core.applyAuthorizationFilters(filters, nil, builder)
+		assert.NoError(t, err)
+		where, params := builder.BuildConditions()
+		assert.Contains(t, where, "data->>'apigroup'")
+		assert.Contains(t, where, "data->>'kind'")
+		assert.Contains(t, params, "apps")
+		assert.Contains(t, params, "Deployment")
+	})
 }
