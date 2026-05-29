@@ -227,6 +227,18 @@ func TestTransportManager_AutoRegisterTransports(t *testing.T) {
 
 			// Verify transports were registered
 			assert.NotEmpty(t, tm.transports)
+
+			// Verify the expected transport type was registered
+			if tt.expectedType == "http" {
+				found := false
+				for _, tr := range tm.transports {
+					if tr.GetName() == "http-mcp" {
+						found = true
+						break
+					}
+				}
+				assert.True(t, found, "expected http-mcp transport to be registered")
+			}
 		})
 	}
 }
