@@ -13,6 +13,7 @@ func TestPermissionSourceSecurityIsolation(t *testing.T) {
 	t.Run("permission source isolation", func(t *testing.T) {
 		// Test that permissions from different sources don't create Cartesian products
 		filters := &QueryFilters{
+			HubClusterName: "local-cluster",
 			PermissionSources: []PermissionSource{
 				{
 					Source:              "userpermission",
