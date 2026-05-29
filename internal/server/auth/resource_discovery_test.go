@@ -125,6 +125,9 @@ func TestResourceDiscoveryFallbackHierarchy(t *testing.T) {
 	discovery := GetSharedResourceDiscovery(config, nil)
 	ctx := context.Background()
 
+	// Seed cache so this test is self-contained and does not depend on execution order.
+	discovery.updateCache(map[string]string{"pods": "Pod"})
+
 	t.Run("simplified discovery - no fallbacks", func(t *testing.T) {
 		// Test that resources use cache when available, otherwise return not found
 		// Fallbacks were removed to simplify discovery logic
