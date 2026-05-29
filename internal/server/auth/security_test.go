@@ -18,7 +18,7 @@ func TestPermissionSourceSecurityIsolation(t *testing.T) {
 					Source:              "userpermission",
 					ClusterScopedKinds:  map[string][]ResourcePermission{}, // No cluster-scoped access
 					NamespacedKinds: map[string][]ResourcePermission{
-						"app-frontend": {{Kind: "Pod"}},
+						"app-frontend": {{Kind: "Pod", APIGroup: ""}},
 					},
 					ManagedClusters: map[string]struct{}{
 						"managed-cluster-1": {},
@@ -112,7 +112,7 @@ func TestWildcardAccessDetection(t *testing.T) {
 					Source:              "userpermission",
 					ClusterScopedKinds:  map[string][]ResourcePermission{}, // No cluster-scoped access
 					NamespacedKinds: map[string][]ResourcePermission{
-						"app-1": {{Kind: "Pod"}},
+						"app-1": {{Kind: "Pod", APIGroup: ""}},
 					},
 					ManagedClusters: map[string]struct{}{
 						"cluster-1": {},
