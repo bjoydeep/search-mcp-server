@@ -14,16 +14,23 @@ import (
 	"github.com/stolostron/search-mcp-server/internal/server/auth"
 )
 
+// healthChecker is a narrow interface used by handleHealth, allowing test
+// doubles without requiring a live database connection.
+type healthChecker interface {
+	Health(ctx context.Context) map[string]interface{}
+}
+
 // HTTPTransport implements MCP-compliant HTTP transport using mark3labs/mcp-go
 type HTTPTransport struct {
-	server        *http.Server
-	config        *ServerConfig
-	mcpServer     *PostgresMCPServer
-	mcpLib        *server.MCPServer
+	server         *http.Server
+	config         *ServerConfig
+	mcpServer      *PostgresMCPServer
+	healthOverride healthChecker // used in tests to inject a stub without a live DB
+	mcpLib         *server.MCPServer
 	authMiddleware *auth.AuthMiddleware
-	requestCount  int64
-	errorCount    int64
-	streamCount   int64
+	requestCount   int64
+	errorCount     int64
+	streamCount    int64
 }
 
 // NewHTTPTransport creates a new MCP-compliant HTTP transport
@@ -551,30 +558,35 @@ func (t *HTTPTransport) isOriginAllowed(origin string) bool {
 func (t *HTTPTransport) handleHealth(w http.ResponseWriter, r *http.Request) {
 	atomic.AddInt64(&t.requestCount, 1)
 
-	if t.mcpServer == nil {
+	w.Header().Set("Content-Type", "application/json")
+
+	// Resolve the health provider: prefer the test override, fall back to mcpServer.
+	var checker healthChecker
+	if t.healthOverride != nil {
+		checker = t.healthOverride
+	} else if t.mcpServer != nil {
+		checker = t.mcpServer
+	}
+
+	if checker == nil {
 		atomic.AddInt64(&t.errorCount, 1)
-		http.Error(w, "Server not initialized", http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "degraded"})
 		return
 	}
 
-	health := t.mcpServer.Health(r.Context())
+	health := checker.Health(r.Context())
 
-	w.Header().Set("Content-Type", "application/json")
-
-	// Set HTTP status code based on health status
+	status := "ok"
+	httpStatus := http.StatusOK
 	if health["status"] == "unhealthy" {
-		w.WriteHeader(http.StatusInternalServerError)
+		atomic.AddInt64(&t.errorCount, 1)
+		status = "degraded"
+		httpStatus = http.StatusInternalServerError
 	}
 
-	responseData := map[string]interface{}{
-		"status":        health["status"],
-		"transport":     "http-mcp",
-		"address":       t.config.GetHTTPAddr(),
-		"mcp_compliant": true,
-		"health":        health,
-	}
-
-	_ = json.NewEncoder(w).Encode(responseData)
+	w.WriteHeader(httpStatus)
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": status})
 }
 
 func (t *HTTPTransport) handleMetrics(w http.ResponseWriter, r *http.Request) {
