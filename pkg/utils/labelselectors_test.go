@@ -4,7 +4,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/stolostron/search-mcp-server/internal/utils"
+	"github.com/stolostron/search-mcp-server/pkg/sqlbuilder"
 )
 
 var _ = Describe("LabelSelectors", func() {
@@ -137,10 +137,10 @@ var _ = Describe("LabelSelectors", func() {
 	})
 
 	Describe("LabelSelectorsToSQL", func() {
-		var builder *utils.SQLBuilder
+		var builder *sqlbuilder.SQLBuilder
 
 		BeforeEach(func() {
-			builder = utils.NewSQLBuilder(1)
+			builder = sqlbuilder.NewSQLBuilder(1)
 		})
 
 		Context("with empty selectors", func() {
@@ -360,7 +360,7 @@ var _ = Describe("LabelSelectors", func() {
 					Values:   []string{"nginx", "apache"}, // Invalid: should be exactly one
 				}}
 
-				builder := utils.NewSQLBuilder(1)
+				builder := sqlbuilder.NewSQLBuilder(1)
 				err := LabelSelectorsToSQL(selectors, "data", builder)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("exactly one value"))
@@ -410,10 +410,10 @@ var _ = Describe("LabelSelectors", func() {
 	})
 
 	Describe("Integration with real-world examples", func() {
-		var builder *utils.SQLBuilder
+		var builder *sqlbuilder.SQLBuilder
 
 		BeforeEach(func() {
-			builder = utils.NewSQLBuilder(1)
+			builder = sqlbuilder.NewSQLBuilder(1)
 		})
 
 		It("should handle Kubernetes pod selector example", func() {

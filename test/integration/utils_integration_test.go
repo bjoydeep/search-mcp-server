@@ -10,7 +10,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/stolostron/search-mcp-server/internal/utils"
+	"github.com/stolostron/search-mcp-server/pkg/sqlbuilder"
 	"github.com/stolostron/search-mcp-server/pkg/config"
 	"github.com/stolostron/search-mcp-server/pkg/database"
 	utilsPkg "github.com/stolostron/search-mcp-server/pkg/utils"
@@ -55,7 +55,7 @@ var _ = Describe("Utils Database Integration Tests", func() {
 
 		It("should execute namespace and kind filtering", func() {
 			// Test Phase 3A cross-resource filtering
-			builder := utils.NewSQLBuilder(1)
+			builder := sqlbuilder.NewSQLBuilder(1)
 
 			err := utilsPkg.BuildNamespaceConditions([]string{"kube-system"}, "data", builder)
 			Expect(err).ToNot(HaveOccurred())
@@ -78,7 +78,7 @@ var _ = Describe("Utils Database Integration Tests", func() {
 
 		It("should execute multi-namespace filtering with wildcards", func() {
 			// Test wildcard namespace filtering
-			builder := utils.NewSQLBuilder(1)
+			builder := sqlbuilder.NewSQLBuilder(1)
 
 			err := utilsPkg.BuildNamespaceConditions([]string{"kube-*", "default"}, "data", builder)
 			Expect(err).ToNot(HaveOccurred())
@@ -101,7 +101,7 @@ var _ = Describe("Utils Database Integration Tests", func() {
 
 		It("should execute multi-kind filtering", func() {
 			// Test multiple kinds
-			builder := utils.NewSQLBuilder(1)
+			builder := sqlbuilder.NewSQLBuilder(1)
 
 			err := utilsPkg.BuildKindConditions([]string{"Pod", "Deployment"}, "data", builder)
 			Expect(err).ToNot(HaveOccurred())
@@ -124,7 +124,7 @@ var _ = Describe("Utils Database Integration Tests", func() {
 
 		It("should execute status filtering for simple resource types", func() {
 			// Test Phase 3B status mapping for Pod (simple type)
-			builder := utils.NewSQLBuilder(1)
+			builder := sqlbuilder.NewSQLBuilder(1)
 
 			err := utilsPkg.BuildKindConditions([]string{"Pod"}, "data", builder)
 			Expect(err).ToNot(HaveOccurred())
@@ -152,7 +152,7 @@ var _ = Describe("Utils Database Integration Tests", func() {
 
 		It("should handle complex resource types correctly", func() {
 			// Test status filtering for complex types (validates SQL generation)
-			builder := utils.NewSQLBuilder(1)
+			builder := sqlbuilder.NewSQLBuilder(1)
 
 			err := utilsPkg.BuildKindConditions([]string{"Deployment"}, "data", builder)
 			Expect(err).ToNot(HaveOccurred())
@@ -178,7 +178,7 @@ var _ = Describe("Utils Database Integration Tests", func() {
 
 		It("should execute text search fallback for unknown resource types", func() {
 			// Test text search fallback
-			builder := utils.NewSQLBuilder(1)
+			builder := sqlbuilder.NewSQLBuilder(1)
 
 			err := utilsPkg.BuildStatusConditions("Active", "data", builder, "UnknownCustomResource")
 			Expect(err).ToNot(HaveOccurred())
@@ -196,7 +196,7 @@ var _ = Describe("Utils Database Integration Tests", func() {
 
 		It("should combine multiple filters in complex queries", func() {
 			// Test combining namespace, kind, and status filters
-			builder := utils.NewSQLBuilder(1)
+			builder := sqlbuilder.NewSQLBuilder(1)
 
 			err := utilsPkg.BuildNamespaceConditions([]string{"default", "kube-system"}, "data", builder)
 			Expect(err).ToNot(HaveOccurred())
@@ -231,7 +231,7 @@ var _ = Describe("Utils Database Integration Tests", func() {
 
 		It("should handle parameter ordering correctly", func() {
 			// Test that parameters are ordered correctly across multiple conditions
-			builder := utils.NewSQLBuilder(1)
+			builder := sqlbuilder.NewSQLBuilder(1)
 
 			// Add conditions in specific order
 			err := utilsPkg.BuildKindConditions([]string{"Pod"}, "data", builder)

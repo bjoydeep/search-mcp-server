@@ -4,16 +4,16 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/stolostron/search-mcp-server/internal/utils"
+	"github.com/stolostron/search-mcp-server/pkg/sqlbuilder"
 )
 
 var _ = Describe("CrossResource", func() {
 
 	Describe("BuildClusterConditions", func() {
-		var builder *utils.SQLBuilder
+		var builder *sqlbuilder.SQLBuilder
 
 		BeforeEach(func() {
-			builder = utils.NewSQLBuilder(1)
+			builder = sqlbuilder.NewSQLBuilder(1)
 		})
 
 		Context("with empty clusters", func() {
@@ -72,10 +72,10 @@ var _ = Describe("CrossResource", func() {
 	})
 
 	Describe("BuildKindConditions", func() {
-		var builder *utils.SQLBuilder
+		var builder *sqlbuilder.SQLBuilder
 
 		BeforeEach(func() {
-			builder = utils.NewSQLBuilder(1)
+			builder = sqlbuilder.NewSQLBuilder(1)
 		})
 
 		Context("with empty kinds", func() {
@@ -120,10 +120,10 @@ var _ = Describe("CrossResource", func() {
 	})
 
 	Describe("BuildNameConditions", func() {
-		var builder *utils.SQLBuilder
+		var builder *sqlbuilder.SQLBuilder
 
 		BeforeEach(func() {
-			builder = utils.NewSQLBuilder(1)
+			builder = sqlbuilder.NewSQLBuilder(1)
 		})
 
 		Context("with empty names", func() {
@@ -197,10 +197,10 @@ var _ = Describe("CrossResource", func() {
 	})
 
 	Describe("BuildNamespaceConditions", func() {
-		var builder *utils.SQLBuilder
+		var builder *sqlbuilder.SQLBuilder
 
 		BeforeEach(func() {
-			builder = utils.NewSQLBuilder(1)
+			builder = sqlbuilder.NewSQLBuilder(1)
 		})
 
 		Context("with empty namespaces", func() {
@@ -274,10 +274,10 @@ var _ = Describe("CrossResource", func() {
 	})
 
 	Describe("BuildTextSearchConditions", func() {
-		var builder *utils.SQLBuilder
+		var builder *sqlbuilder.SQLBuilder
 
 		BeforeEach(func() {
-			builder = utils.NewSQLBuilder(1)
+			builder = sqlbuilder.NewSQLBuilder(1)
 		})
 
 		Context("with empty search terms", func() {
@@ -391,10 +391,10 @@ var _ = Describe("CrossResource", func() {
 	})
 
 	Describe("Integration with existing conditions", func() {
-		var builder *utils.SQLBuilder
+		var builder *sqlbuilder.SQLBuilder
 
 		BeforeEach(func() {
-			builder = utils.NewSQLBuilder(1)
+			builder = sqlbuilder.NewSQLBuilder(1)
 		})
 
 		It("should chain properly with existing conditions", func() {

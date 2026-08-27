@@ -1,5 +1,5 @@
-// Package utils provides internal utility functions for the search MCP server
-package utils
+// Package sqlbuilder provides SQL condition building utilities for the search MCP server
+package sqlbuilder
 
 import (
 	"fmt"

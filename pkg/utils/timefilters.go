@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/stolostron/search-mcp-server/internal/utils"
+	"github.com/stolostron/search-mcp-server/pkg/sqlbuilder"
 )
 
 // TimeFilter represents a time-based filter condition
@@ -108,7 +108,7 @@ func ParseTimeFilters(ageNewerThan, ageOlderThan string) ([]*TimeFilter, error) 
 
 // TimeFiltersToSQL converts time filters to SQL WHERE conditions using SQLBuilder
 // dataColumn: the JSON column name (usually "data")
-func TimeFiltersToSQL(filters []*TimeFilter, dataColumn string, builder *utils.SQLBuilder) error {
+func TimeFiltersToSQL(filters []*TimeFilter, dataColumn string, builder *sqlbuilder.SQLBuilder) error {
 	if len(filters) == 0 {
 		return nil
 	}

@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/stolostron/search-mcp-server/internal/sanitize"
-	"github.com/stolostron/search-mcp-server/internal/server/auth"
-	"github.com/stolostron/search-mcp-server/internal/utils"
+	"github.com/stolostron/search-mcp-server/pkg/auth"
 	"github.com/stolostron/search-mcp-server/pkg/database"
+	"github.com/stolostron/search-mcp-server/pkg/sanitize"
+	"github.com/stolostron/search-mcp-server/pkg/sqlbuilder"
 	"github.com/stolostron/search-mcp-server/pkg/types"
 	pkgutils "github.com/stolostron/search-mcp-server/pkg/utils"
 )
@@ -235,7 +235,7 @@ type QueryPlan struct {
 // buildAuthorizedQuery builds a SQL query with authorization filters applied first
 func (f *FindResourcesCore) buildAuthorizedQuery(args FindResourcesArgs, targetClusters []string, userCtx *auth.UserContext) (*QueryPlan, error) {
 	// Initialize SQL builder for WHERE conditions
-	sqlBuilder := utils.NewSQLBuilder(1) // Start with parameter index 1
+	sqlBuilder := sqlbuilder.NewSQLBuilder(1) // Start with parameter index 1
 
 	// STEP 1: Apply authorization filters FIRST (before user-requested filters)
 	if userCtx != nil {
@@ -373,7 +373,7 @@ func (f *FindResourcesCore) buildAuthorizedQuery(args FindResourcesArgs, targetC
 }
 
 // applyAuthorizationFilters applies user authorization filters using direct mapping to prevent Cartesian products
-func (f *FindResourcesCore) applyAuthorizationFilters(filters *auth.QueryFilters, kindFilter interface{}, builder *utils.SQLBuilder) error {
+func (f *FindResourcesCore) applyAuthorizationFilters(filters *auth.QueryFilters, kindFilter interface{}, builder *sqlbuilder.SQLBuilder) error {
 	if len(filters.PermissionSources) == 0 {
 		// No permissions means no access
 		builder.AddCondition("1 = 0") // Always false condition
@@ -781,7 +781,7 @@ func (f *FindResourcesCore) buildOrderByClause(sortBy, sortOrder string) string 
 
 // buildKindConditions creates WHERE conditions for kind filter
 // COMMA SUPPORT: Now handles comma-separated kind strings like "ConfigMap,Pod"
-func (f *FindResourcesCore) buildKindConditions(kind interface{}, builder *utils.SQLBuilder) error {
+func (f *FindResourcesCore) buildKindConditions(kind interface{}, builder *sqlbuilder.SQLBuilder) error {
 	var kinds []string
 	switch v := kind.(type) {
 	case string:
@@ -824,13 +824,13 @@ func (f *FindResourcesCore) buildKindConditions(kind interface{}, builder *utils
 }
 
 // buildNameConditions creates WHERE conditions for name filter
-func (f *FindResourcesCore) buildNameConditions(name string, builder *utils.SQLBuilder) error {
+func (f *FindResourcesCore) buildNameConditions(name string, builder *sqlbuilder.SQLBuilder) error {
 	names := []string{name}
 	return pkgutils.BuildNameConditions(names, "data", builder)
 }
 
 // buildNamespaceConditions creates WHERE conditions for namespace filter
-func (f *FindResourcesCore) buildNamespaceConditions(namespace interface{}, builder *utils.SQLBuilder) error {
+func (f *FindResourcesCore) buildNamespaceConditions(namespace interface{}, builder *sqlbuilder.SQLBuilder) error {
 	var namespaces []string
 	switch v := namespace.(type) {
 	case string:
@@ -851,12 +851,12 @@ func (f *FindResourcesCore) buildNamespaceConditions(namespace interface{}, buil
 }
 
 // buildClusterConditions creates WHERE conditions for cluster filter
-func (f *FindResourcesCore) buildClusterConditions(clusters []string, builder *utils.SQLBuilder) error {
+func (f *FindResourcesCore) buildClusterConditions(clusters []string, builder *sqlbuilder.SQLBuilder) error {
 	return pkgutils.BuildClusterConditions(clusters, "data", builder)
 }
 
 // buildLabelConditions creates WHERE conditions for label selector
-func (f *FindResourcesCore) buildLabelConditions(labelSelector string, builder *utils.SQLBuilder) error {
+func (f *FindResourcesCore) buildLabelConditions(labelSelector string, builder *sqlbuilder.SQLBuilder) error {
 	selectors, err := pkgutils.ParseLabelSelector(labelSelector)
 	if err != nil {
 		return err
@@ -866,23 +866,23 @@ func (f *FindResourcesCore) buildLabelConditions(labelSelector string, builder *
 }
 
 // buildStatusConditions creates WHERE conditions for status filter
-func (f *FindResourcesCore) buildStatusConditions(status interface{}, kind interface{}, builder *utils.SQLBuilder) error {
+func (f *FindResourcesCore) buildStatusConditions(status interface{}, kind interface{}, builder *sqlbuilder.SQLBuilder) error {
 	return pkgutils.BuildStatusConditions(status, "data", builder, kind)
 }
 
 // buildComplianceConditions creates WHERE conditions for policy compliance filter
-func (f *FindResourcesCore) buildComplianceConditions(compliance interface{}, builder *utils.SQLBuilder) error {
+func (f *FindResourcesCore) buildComplianceConditions(compliance interface{}, builder *sqlbuilder.SQLBuilder) error {
 	return pkgutils.BuildComplianceConditions(compliance, "data", builder)
 }
 
 // buildTextSearchConditions creates WHERE conditions for text search
-func (f *FindResourcesCore) buildTextSearchConditions(textSearch string, builder *utils.SQLBuilder) error {
+func (f *FindResourcesCore) buildTextSearchConditions(textSearch string, builder *sqlbuilder.SQLBuilder) error {
 	searchTexts := []string{textSearch}
 	return pkgutils.BuildTextSearchConditions(searchTexts, "data", builder)
 }
 
 // buildTimeConditions creates WHERE conditions for time filters
-func (f *FindResourcesCore) buildTimeConditions(ageNewerThan, ageOlderThan string, builder *utils.SQLBuilder) error {
+func (f *FindResourcesCore) buildTimeConditions(ageNewerThan, ageOlderThan string, builder *sqlbuilder.SQLBuilder) error {
 	filters, err := pkgutils.ParseTimeFilters(ageNewerThan, ageOlderThan)
 	if err != nil {
 		return err

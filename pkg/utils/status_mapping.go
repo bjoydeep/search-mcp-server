@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/stolostron/search-mcp-server/internal/utils"
+	"github.com/stolostron/search-mcp-server/pkg/sqlbuilder"
 )
 
 // StatusCategory represents the different categories of status mappings
@@ -495,7 +495,7 @@ func EvaluateComplexStatus(kind string, data map[string]interface{}) HealthStatu
 }
 
 // BuildKindAwareStatusConditions is the main router for building status-aware SQL conditions
-func BuildKindAwareStatusConditions(kind interface{}, status interface{}, dataColumn string, builder *utils.SQLBuilder) error {
+func BuildKindAwareStatusConditions(kind interface{}, status interface{}, dataColumn string, builder *sqlbuilder.SQLBuilder) error {
 	log.Printf("[STATUS] Building kind-aware conditions for kind: %v, status: %v", kind, status)
 
 	// Handle multiple kinds
@@ -594,7 +594,7 @@ func normalizeStatusInput(status interface{}) []string {
 }
 
 // buildSimpleStatusConditions builds SQL conditions for single-field lookups
-func buildSimpleStatusConditions(status interface{}, field string, dataColumn string, builder *utils.SQLBuilder) error {
+func buildSimpleStatusConditions(status interface{}, field string, dataColumn string, builder *sqlbuilder.SQLBuilder) error {
 	statusArray := normalizeStatusInput(status)
 
 	if len(statusArray) == 0 {
@@ -619,7 +619,7 @@ func buildSimpleStatusConditions(status interface{}, field string, dataColumn st
 }
 
 // buildNestedStatusConditions builds SQL conditions for nested JSON path navigation
-func buildNestedStatusConditions(status interface{}, jsonPath string, dataColumn string, builder *utils.SQLBuilder) error {
+func buildNestedStatusConditions(status interface{}, jsonPath string, dataColumn string, builder *sqlbuilder.SQLBuilder) error {
 	statusArray := normalizeStatusInput(status)
 
 	if len(statusArray) == 0 {
@@ -686,7 +686,7 @@ func convertJSONPathToSQL(jsonPath string, dataColumn string) (string, error) {
 }
 
 // buildMultiConditionStatusConditions builds OR conditions across multiple status fields
-func buildMultiConditionStatusConditions(status interface{}, conditionFields []string, dataColumn string, builder *utils.SQLBuilder) error {
+func buildMultiConditionStatusConditions(status interface{}, conditionFields []string, dataColumn string, builder *sqlbuilder.SQLBuilder) error {
 	statusArray := normalizeStatusInput(status)
 
 	if len(statusArray) == 0 {
@@ -724,7 +724,7 @@ func buildMultiConditionStatusConditions(status interface{}, conditionFields []s
 }
 
 // buildMultiKindStatusConditions handles queries filtering multiple resource kinds simultaneously
-func buildMultiKindStatusConditions(kinds []string, status interface{}, dataColumn string, builder *utils.SQLBuilder) error {
+func buildMultiKindStatusConditions(kinds []string, status interface{}, dataColumn string, builder *sqlbuilder.SQLBuilder) error {
 	statusArray := normalizeStatusInput(status)
 
 	if len(statusArray) == 0 {
@@ -821,7 +821,7 @@ func buildMultiKindStatusConditions(kinds []string, status interface{}, dataColu
 }
 
 // buildTextSearchStatusFallback builds fallback text search conditions for unmapped types
-func buildTextSearchStatusFallback(status interface{}, dataColumn string, builder *utils.SQLBuilder) error {
+func buildTextSearchStatusFallback(status interface{}, dataColumn string, builder *sqlbuilder.SQLBuilder) error {
 	statusArray := normalizeStatusInput(status)
 
 	if len(statusArray) == 0 {
@@ -898,7 +898,7 @@ func PostFilterByComplexStatus(results []map[string]interface{}, statusFilter in
 
 // BuildStatusConditions is the main entry point for building status conditions
 // It implements the hybrid approach: kind-aware filtering with fallback to text search
-func BuildStatusConditions(status interface{}, dataColumn string, builder *utils.SQLBuilder, kind interface{}) error {
+func BuildStatusConditions(status interface{}, dataColumn string, builder *sqlbuilder.SQLBuilder, kind interface{}) error {
 	statusArray := normalizeStatusInput(status)
 
 	if len(statusArray) == 0 {

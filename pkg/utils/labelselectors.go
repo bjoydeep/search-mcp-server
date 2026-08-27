@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/stolostron/search-mcp-server/internal/utils"
+	"github.com/stolostron/search-mcp-server/pkg/sqlbuilder"
 )
 
 // LabelSelector represents a Kubernetes label selector requirement
@@ -228,7 +228,7 @@ func parseSingleSelector(selector string) (*LabelSelector, error) {
 // LabelSelectorsToSQL converts label selectors to SQL WHERE conditions using SQLBuilder
 // dataColumn: the JSON column name (usually "data")
 // Kubernetes labels are stored in the JSON data under the "label" key
-func LabelSelectorsToSQL(selectors []*LabelSelector, dataColumn string, builder *utils.SQLBuilder) error {
+func LabelSelectorsToSQL(selectors []*LabelSelector, dataColumn string, builder *sqlbuilder.SQLBuilder) error {
 	if len(selectors) == 0 {
 		return nil
 	}

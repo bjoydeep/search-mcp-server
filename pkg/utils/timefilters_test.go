@@ -6,7 +6,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/stolostron/search-mcp-server/internal/utils"
+	"github.com/stolostron/search-mcp-server/pkg/sqlbuilder"
 )
 
 var _ = Describe("TimeFilters", func() {
@@ -135,10 +135,10 @@ var _ = Describe("TimeFilters", func() {
 	})
 
 	Describe("TimeFiltersToSQL", func() {
-		var builder *utils.SQLBuilder
+		var builder *sqlbuilder.SQLBuilder
 
 		BeforeEach(func() {
-			builder = utils.NewSQLBuilder(1)
+			builder = sqlbuilder.NewSQLBuilder(1)
 		})
 
 		Context("with empty filters", func() {
@@ -191,7 +191,7 @@ var _ = Describe("TimeFilters", func() {
 						Value:    testTime,
 					}
 
-					builder := utils.NewSQLBuilder(1)
+					builder := sqlbuilder.NewSQLBuilder(1)
 					err := TimeFiltersToSQL([]*TimeFilter{filter}, "data", builder)
 					Expect(err).ToNot(HaveOccurred())
 

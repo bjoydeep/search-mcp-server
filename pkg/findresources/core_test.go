@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stolostron/search-mcp-server/internal/sanitize"
-	"github.com/stolostron/search-mcp-server/internal/server/auth"
-	"github.com/stolostron/search-mcp-server/internal/utils"
+	"github.com/stolostron/search-mcp-server/pkg/auth"
+	"github.com/stolostron/search-mcp-server/pkg/sanitize"
+	"github.com/stolostron/search-mcp-server/pkg/sqlbuilder"
 	"github.com/stolostron/search-mcp-server/pkg/types"
 	"github.com/stretchr/testify/assert"
 )
@@ -634,7 +634,7 @@ func TestApplyAuthorizationFilters(t *testing.T) {
 
 	t.Run("empty permission sources denies access", func(t *testing.T) {
 		filters := &auth.QueryFilters{PermissionSources: []auth.PermissionSource{}}
-		builder := utils.NewSQLBuilder(1)
+		builder := sqlbuilder.NewSQLBuilder(1)
 		err := core.applyAuthorizationFilters(filters, nil, builder)
 		assert.NoError(t, err)
 		where, _ := builder.BuildConditions()
@@ -663,7 +663,7 @@ func TestApplyAuthorizationFilters(t *testing.T) {
 				},
 			},
 		}
-		builder := utils.NewSQLBuilder(1)
+		builder := sqlbuilder.NewSQLBuilder(1)
 		err := core.applyAuthorizationFilters(filters, nil, builder)
 		assert.NoError(t, err)
 		where, params := builder.BuildConditions()
@@ -686,7 +686,7 @@ func TestApplyAuthorizationFilters(t *testing.T) {
 				},
 			},
 		}
-		builder := utils.NewSQLBuilder(1)
+		builder := sqlbuilder.NewSQLBuilder(1)
 		err := core.applyAuthorizationFilters(filters, nil, builder)
 		assert.NoError(t, err)
 		where, _ := builder.BuildConditions()
@@ -707,7 +707,7 @@ func TestApplyAuthorizationFilters(t *testing.T) {
 				},
 			},
 		}
-		builder := utils.NewSQLBuilder(1)
+		builder := sqlbuilder.NewSQLBuilder(1)
 		err := core.applyAuthorizationFilters(filters, nil, builder)
 		assert.NoError(t, err)
 		where, params := builder.BuildConditions()

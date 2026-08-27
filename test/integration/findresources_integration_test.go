@@ -11,8 +11,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/stolostron/search-mcp-server/internal/findresources"
-	"github.com/stolostron/search-mcp-server/internal/server/auth"
+	"github.com/stolostron/search-mcp-server/pkg/auth"
+	"github.com/stolostron/search-mcp-server/pkg/findresources"
 	"github.com/stolostron/search-mcp-server/pkg/config"
 	"github.com/stolostron/search-mcp-server/pkg/database"
 	"github.com/stolostron/search-mcp-server/pkg/types"

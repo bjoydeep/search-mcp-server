@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/stolostron/search-mcp-server/internal/utils"
+	"github.com/stolostron/search-mcp-server/pkg/sqlbuilder"
 )
 
 // CrossResourceFilter represents a filter condition for cross-resource queries
@@ -31,7 +31,7 @@ const (
 
 // BuildClusterConditions builds SQL conditions for filtering by cluster name(s)
 // Supports single cluster or multiple clusters using IN clause
-func BuildClusterConditions(clusters []string, dataColumn string, builder *utils.SQLBuilder) error {
+func BuildClusterConditions(clusters []string, dataColumn string, builder *sqlbuilder.SQLBuilder) error {
 	if len(clusters) == 0 {
 		return nil
 	}
@@ -65,7 +65,7 @@ func BuildClusterConditions(clusters []string, dataColumn string, builder *utils
 
 // BuildKindConditions builds SQL conditions for filtering by resource kind(s)
 // Queries the data->>'kind' JSON field for single or multiple kinds
-func BuildKindConditions(kinds []string, dataColumn string, builder *utils.SQLBuilder) error {
+func BuildKindConditions(kinds []string, dataColumn string, builder *sqlbuilder.SQLBuilder) error {
 	if len(kinds) == 0 {
 		return nil
 	}
@@ -101,7 +101,7 @@ func BuildKindConditions(kinds []string, dataColumn string, builder *utils.SQLBu
 
 // BuildNameConditions builds SQL conditions for filtering by resource name
 // Supports exact matching and wildcard patterns (* and ?)
-func BuildNameConditions(names []string, dataColumn string, builder *utils.SQLBuilder) error {
+func BuildNameConditions(names []string, dataColumn string, builder *sqlbuilder.SQLBuilder) error {
 	if len(names) == 0 {
 		return nil
 	}
@@ -144,7 +144,7 @@ func BuildNameConditions(names []string, dataColumn string, builder *utils.SQLBu
 // BuildNamespaceConditions builds SQL conditions for filtering by namespace
 // Supports exact matching and wildcard patterns (* and ?)
 // Handles mix of exact and wildcard patterns in a single query
-func BuildNamespaceConditions(namespaces []string, dataColumn string, builder *utils.SQLBuilder) error {
+func BuildNamespaceConditions(namespaces []string, dataColumn string, builder *sqlbuilder.SQLBuilder) error {
 	if len(namespaces) == 0 {
 		return nil
 	}
@@ -186,7 +186,7 @@ func BuildNamespaceConditions(namespaces []string, dataColumn string, builder *u
 
 // BuildTextSearchConditions builds SQL conditions for text search across multiple fields
 // Searches in name, namespace, and full JSON text with case-insensitive ILIKE
-func BuildTextSearchConditions(searchTexts []string, dataColumn string, builder *utils.SQLBuilder) error {
+func BuildTextSearchConditions(searchTexts []string, dataColumn string, builder *sqlbuilder.SQLBuilder) error {
 	if len(searchTexts) == 0 {
 		return nil
 	}
@@ -447,7 +447,7 @@ func evaluateGenericHealth(data map[string]interface{}) string {
 
 // BuildComplianceConditions creates WHERE conditions for ACM governance policy compliance filtering
 // Filters on the 'compliant' field: "Compliant", "NonCompliant", "UnknownCompliancy"
-func BuildComplianceConditions(compliance interface{}, dataColumn string, builder *utils.SQLBuilder) error {
+func BuildComplianceConditions(compliance interface{}, dataColumn string, builder *sqlbuilder.SQLBuilder) error {
 	complianceValues := normalizeComplianceInput(compliance)
 
 	if len(complianceValues) == 0 {

@@ -4,7 +4,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/stolostron/search-mcp-server/internal/utils"
+	"github.com/stolostron/search-mcp-server/pkg/sqlbuilder"
 )
 
 var _ = Describe("StatusMapping", func() {
@@ -269,10 +269,10 @@ var _ = Describe("StatusMapping", func() {
 	})
 
 	Describe("SQL Condition Building", func() {
-		var builder *utils.SQLBuilder
+		var builder *sqlbuilder.SQLBuilder
 
 		BeforeEach(func() {
-			builder = utils.NewSQLBuilder(1)
+			builder = sqlbuilder.NewSQLBuilder(1)
 		})
 
 		Describe("buildSimpleStatusConditions", func() {
@@ -386,10 +386,10 @@ var _ = Describe("StatusMapping", func() {
 	})
 
 	Describe("BuildKindAwareStatusConditions", func() {
-		var builder *utils.SQLBuilder
+		var builder *sqlbuilder.SQLBuilder
 
 		BeforeEach(func() {
-			builder = utils.NewSQLBuilder(1)
+			builder = sqlbuilder.NewSQLBuilder(1)
 		})
 
 		It("should handle simple category resources", func() {
@@ -451,10 +451,10 @@ var _ = Describe("StatusMapping", func() {
 	})
 
 	Describe("BuildStatusConditions", func() {
-		var builder *utils.SQLBuilder
+		var builder *sqlbuilder.SQLBuilder
 
 		BeforeEach(func() {
-			builder = utils.NewSQLBuilder(1)
+			builder = sqlbuilder.NewSQLBuilder(1)
 		})
 
 		It("should use kind-aware filtering for known types", func() {

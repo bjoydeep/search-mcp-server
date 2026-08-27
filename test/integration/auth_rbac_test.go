@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/stolostron/search-mcp-server/internal/server/auth"
+	"github.com/stolostron/search-mcp-server/pkg/auth"
 	"github.com/stolostron/search-mcp-server/test/helpers"
 )
 

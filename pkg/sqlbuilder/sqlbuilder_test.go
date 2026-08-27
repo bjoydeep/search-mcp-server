@@ -1,4 +1,4 @@
-package utils
+package sqlbuilder
 
 import (
 	. "github.com/onsi/ginkgo/v2"
